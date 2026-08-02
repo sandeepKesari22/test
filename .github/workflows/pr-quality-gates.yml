@@ -1,0 +1,86 @@
+name: PR Quality Gates
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  security-events: write
+
+concurrency:
+  group: pr-quality-gates-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  source-policy:
+    name: 1. Source policy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate source layout and reject generated binaries
+        shell: bash
+        run: |
+          test -d src
+          test -n "$(find src -type f -name '*.java' -print -quit)"
+          ! find . -path './.git' -prune -o -type f \( -name '*.class' -o -name '*.jar' \) -print -quit | grep -q .
+
+  compile:
+    name: 2. Compile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Compile all production sources
+        shell: bash
+        run: |
+          mkdir -p build/classes
+          javac -d build/classes $(find src -type f -name '*.java' | sort)
+
+  lint:
+    name: 3. Strict compiler lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Compile with warnings treated as errors
+        shell: bash
+        run: |
+          mkdir -p build/lint
+          javac -Xlint:all -Werror -d build/lint $(find src -type f -name '*.java' | sort)
+
+  smoke-test:
+    name: 4. Behavioral smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Compile and validate the MathOperations entry point
+        shell: bash
+        run: |
+          mkdir -p build/classes
+          javac -d build/classes $(find src -type f -name '*.java' | sort)
+          output="$(java -cp build/classes MathOperations)"
+          test "$output" = $'Addition: 15\nSubtraction: 5'
+
+  codeql:
+    name: 5. CodeQL security analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: java-kotlin
+          build-mode: none
+      - name: Analyze source
+        uses: github/codeql-action/analyze@v3
