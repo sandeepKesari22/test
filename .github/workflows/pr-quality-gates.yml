@@ -84,3 +84,5 @@ jobs:
           build-mode: none
       - name: Analyze source
         uses: github/codeql-action/analyze@v3
+      - name: Intentional CodeQL gate failure
+        run: exit 1

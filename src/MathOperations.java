@@ -7,7 +7,7 @@ public class MathOperations {
      * Returns the sum of two integers.
      */
     public int add(int firstNumber, int secondNumber) {
-        return firstNumber + secondNumber;
+        return firstNumber + secondNumber
     }
 
     /**
